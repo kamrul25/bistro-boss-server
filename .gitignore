@@ -1,2 +1,4 @@
 node_modules
 .env
+menu.json
+reviews.json
