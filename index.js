@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-// const jwt = require("jsonwebtoken");
+const jwt = require("jsonwebtoken");
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
@@ -10,6 +10,28 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(cors());
 app.use(express.json());
+
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res
+      .status(401)
+      .send({ error: true, message: "unauthorized access" });
+  }
+
+  const token = authorization.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+    if (err) {
+      return res
+        .status(401)
+        .send({ error: true, message: "unauthorized access" });
+    }
+
+    req.decoded = decoded;
+
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.vylcgzn.mongodb.net/?retryWrites=true&w=majority`;
 
@@ -24,6 +46,16 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
+    //  create jsonwebtoken
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN, {
+        expiresIn: "1h",
+      });
+      res.json({ token });
+    });
+
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
     const userCollection = client.db("bistroDB").collection("user");
@@ -51,7 +83,7 @@ async function run() {
 
     app.patch("/users/admin/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(id)
+      console.log(id);
       const filter = { _id: new ObjectId(id) };
       const updateDoc = {
         $set: {
@@ -59,19 +91,19 @@ async function run() {
         },
       };
 
-      const result = await userCollection.updateOne(filter, updateDoc)
-      res.json(result)
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.json(result);
     });
+
     app.delete("/users/admin/:id", async (req, res) => {
       const id = req.params.id;
-      
+
       const filter = { _id: new ObjectId(id) };
 
       const result = await userCollection.deleteOne(filter);
       res.json(result);
     });
 
-    
     // menu related apis
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
@@ -84,15 +116,22 @@ async function run() {
     });
 
     // carts related apis
-    app.get("/carts", async (req, res) => {
+    app.get("/carts",verifyJWT, async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.json([]);
+      }
+
+      const decodedEmail= req.decoded.email;
+      if(email !== decodedEmail){
+        return res.status(403).send({ error: true, message: 'forbidden access' })
       }
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
       res.json(result);
     });
+
+    
     app.post("/carts", async (req, res) => {
       const cart = req.body;
       const result = await cartCollection.insertOne(cart);
