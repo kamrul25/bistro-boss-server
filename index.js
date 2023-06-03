@@ -47,7 +47,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     //  create jsonwebtoken
-    app.post("/jwt", async (req, res) => {
+    app.post("/jwt", (req, res) => {
       const user = req.body;
 
       const token = jwt.sign(user, process.env.ACCESS_TOKEN, {
@@ -63,7 +63,31 @@ async function run() {
     const reviewCollection = client.db("bistroDB").collection("reviews");
     const cartCollection = client.db("bistroDB").collection("carts");
 
+
+    // verify admin middleware
+    const verifyAdmin = async(req, res, next) =>{
+      const email= req.decoded.email;
+      const query ={ email: email};
+      const user = await userCollection.findOne(query)
+      if(user?.role !== "admin"){
+        return res.status(403).json({error: true, message: "forbidden access"})
+      }
+      next()
+    }
+
+    
+    /**
+     * 0. do not show secure links to those who should not see the links
+     * 1. use jwt token: verifyJWT
+     * 2. use verifyAdmin middleware
+    */
+
     // user related apis
+    app.get("/users",verifyJWT,verifyAdmin, async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.json(result);
+    });
+
     app.post("/users", async (req, res) => {
       const user = req.body;
       const query = { email: user.email };
@@ -76,10 +100,23 @@ async function run() {
       res.json(result);
     });
 
-    app.get("/users", async (req, res) => {
-      const result = await userCollection.find().toArray();
+    // security layer: verifyJWT
+    // email same
+    // check admin
+    app.get("/users/admin/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+
+      if (req.decoded.email !== email) {
+        res.json({ admin: false });
+      }
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+
+      const result = { admin: user?.role === "admin" };
       res.json(result);
     });
+
+ 
 
     app.patch("/users/admin/:id", async (req, res) => {
       const id = req.params.id;
@@ -116,22 +153,23 @@ async function run() {
     });
 
     // carts related apis
-    app.get("/carts",verifyJWT, async (req, res) => {
+    app.get("/carts", verifyJWT, async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.json([]);
       }
 
-      const decodedEmail= req.decoded.email;
-      if(email !== decodedEmail){
-        return res.status(403).send({ error: true, message: 'forbidden access' })
+      const decodedEmail = req.decoded.email;
+      if (email !== decodedEmail) {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden access" });
       }
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
       res.json(result);
     });
 
-    
     app.post("/carts", async (req, res) => {
       const cart = req.body;
       const result = await cartCollection.insertOne(cart);
