@@ -63,27 +63,27 @@ async function run() {
     const reviewCollection = client.db("bistroDB").collection("reviews");
     const cartCollection = client.db("bistroDB").collection("carts");
 
-
     // verify admin middleware
-    const verifyAdmin = async(req, res, next) =>{
-      const email= req.decoded.email;
-      const query ={ email: email};
-      const user = await userCollection.findOne(query)
-      if(user?.role !== "admin"){
-        return res.status(403).json({error: true, message: "forbidden access"})
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      if (user?.role !== "admin") {
+        return res
+          .status(403)
+          .json({ error: true, message: "forbidden access" });
       }
-      next()
-    }
+      next();
+    };
 
-    
     /**
      * 0. do not show secure links to those who should not see the links
      * 1. use jwt token: verifyJWT
      * 2. use verifyAdmin middleware
-    */
+     */
 
     // user related apis
-    app.get("/users",verifyJWT,verifyAdmin, async (req, res) => {
+    app.get("/users", verifyJWT, verifyAdmin, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.json(result);
     });
@@ -116,8 +116,6 @@ async function run() {
       res.json(result);
     });
 
- 
-
     app.patch("/users/admin/:id", async (req, res) => {
       const id = req.params.id;
       console.log(id);
@@ -147,12 +145,18 @@ async function run() {
       res.json(result);
     });
 
-
-    app.post('/menu',verifyJWT, verifyAdmin, async(req, res) =>{
+    app.post("/menu", verifyJWT, verifyAdmin, async (req, res) => {
       const newItem = req.body;
-      const result = await menuCollection.insertOne(newItem)
-      res.json(result)
-    })
+      const result = await menuCollection.insertOne(newItem);
+      res.json(result);
+    });
+
+    app.delete("/menu/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await menuCollection.deleteOne(query);
+      res.json(result);
+    });
     // reviews related apis
     app.get("/reviews", async (req, res) => {
       const result = await reviewCollection.find().toArray();
