@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
+// This is your test secret API key.
+const stripe = require("stripe")(process.env.STRIPE_KEY);
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
@@ -33,6 +35,13 @@ const verifyJWT = (req, res, next) => {
   });
 };
 
+const calculateOrderAmount = (price) => {
+  // Replace this constant with a calculation of the order's amount
+  // Calculate the order total on the server to prevent
+  // people from directly manipulating the amount on the client
+  return 1400;
+};
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.vylcgzn.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -62,7 +71,25 @@ async function run() {
     const menuCollection = client.db("bistroDB").collection("menu");
     const reviewCollection = client.db("bistroDB").collection("reviews");
     const cartCollection = client.db("bistroDB").collection("carts");
+    const paymentCollection = client.db("bistroDB").collection("payments");
 
+     app.post("/create-payment-intent", async(req, res)=>{
+      const { price} = req.body;
+
+      // Create a PaymentIntent with the order amount and currency
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: calculateOrderAmount(price),
+        currency: "usd",
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    
+  
+     }) 
     // verify admin middleware
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
